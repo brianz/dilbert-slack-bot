@@ -6,6 +6,10 @@ __pycache__/
 # C extensions
 *.so
 
+*.swp
+.env
+dilbert/.serverless
+
 # Distribution / packaging
 .Python
 env/

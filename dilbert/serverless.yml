@@ -1,0 +1,44 @@
+service: dilbert
+
+provider:
+  name: aws
+  runtime: python2.7
+  stage: dev
+  region: us-west-2
+  memorySize: 256
+  timeout: 6
+  iamRoleStatements:
+    - Effect: "Allow"
+      Action:
+        - "dynamodb:*"
+      Resource: "arn:aws:dynamodb:${self:provider.region}:*:table/devDilbert"
+
+
+resources:
+  Resources:
+    dynamoUsersTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: devDilbert
+        AttributeDefinitions:
+          - AttributeName: postDay
+            AttributeType: S
+        KeySchema:
+          - AttributeName: postDay
+            KeyType: HASH
+        ProvisionedThroughput:
+          ReadCapacityUnits: 1
+          WriteCapacityUnits: 1
+
+package:
+  exclude:
+    - "**/*.pyc"
+    - "**/*.swp"
+
+functions:
+  dilbert:
+    handler: handler.dilbert
+    events:
+      - http:
+          path: /
+          method: get
