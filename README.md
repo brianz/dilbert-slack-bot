@@ -46,3 +46,8 @@ From within the Docker container (or on your local system):
 
 The output from this will be an API Gateway URL which you can use to setup your [custom Slash
 command in Slack](https://api.slack.com/slash-commands).
+
+In addition to the API Gateway endpoint serverless will create:
+
+- lambda function to process the request -> `handler.py`
+- DynamoDB table to cache the Dilbert image urls -> see `serverless.yml`
