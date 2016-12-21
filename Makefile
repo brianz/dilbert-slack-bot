@@ -1,4 +1,4 @@
-NAME="bzblog/serverless"
+NAME="brianz/serverless:1.3"
 
 all : build
 
