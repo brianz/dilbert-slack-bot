@@ -10,11 +10,13 @@ from datetime import datetime, timedelta
 
 _days_ago_re = re.compile('(?P<days>\w+) days ago')
 _int_days_ago_re = re.compile('(?P<days>\d{1,2}) days ago')
+_last_int_days = re.compile('last (?P<days>[12345])')
 _comic_url_re = re.compile('\s+src="(?P<url>http://assets.amuniversal.com/[a-f0-9]+)"(\s\/)?>')
 
 AWS_REGION = 'us-west-2'
 TABLE_NAME = 'devDilbert'
 DEFAULT_DATE_FMT = '%Y-%m-%d'
+MAX_COMICS = 5
 
 # global dynamodb table
 _table = None
@@ -73,6 +75,10 @@ def _get_dt_from_days_ago(message):
     if not days_ago:
         return
 
+    return _get_dt_from_days(days)
+
+
+def _get_dt_from_days(days):
     try:
         now = datetime.now()
         days = int(days)
@@ -187,6 +193,31 @@ def get_slack_json(url, dt):
     }
 
 
+def get_multiple(n):
+    # sanity check..b/c people are evil. Also, the regex to match the command/post should catch
+    # this but leave it in as a safety check
+    if n > MAX_COMICS:
+        n = MAX_COMICS
+    if n < 1:
+        n = 1
+
+    # get the last n days, inclusive of today
+    dts = [_get_dt_from_days(d) for d in xrange(n + 1)]
+    urls = [(dt, get_comic_url(dt)) for dt in dts]
+    attachments = [{
+                'text': 'Dilbert for %s:' % (dt.strftime('%Y-%m-%d'), ),
+                'title_link': url,
+                'text': url,
+                'image_url': get_image_url(url, dt),
+        } for (dt, url) in urls]
+    attachments.reverse()
+    return {
+        'response_type': 'in_channel',
+        'text': 'Dilberts for last %d days:' % (n, ),
+        'attachments': attachments,
+    }
+
+
 def dilbert(event, context):
     """Build the URL for a Dilbert comic with the following language/spec:
 
@@ -196,6 +227,7 @@ def dilbert(event, context):
         /dilbert $N days ago -> Reply with a comic from $N days ago where $N can be an
                                 integer or written number (ie, "2" or "two")
         /dilbert $DATE -> Reply with a comic from a specific date with multiple formats
+        /dilbert last [1-5] -> Reply with the last n comics, inclusive of today
 
     """
     print event
@@ -206,13 +238,18 @@ def dilbert(event, context):
     # assert query_params['token'] == 'your-slash-command-token'
 
     date = query_params.get('text', '').strip().lower()
-    if date == 'random':
-        dt = get_random_datetime()
-    else:
-        dt = get_datetime_from_message(date)
 
-    url = get_comic_url(dt)
-    slash_json = get_slack_json(url, dt)
+    # see if we're looking up multiple days
+    get_last_n_days = _last_int_days.search(date)
+    if get_last_n_days:
+        n = int(get_last_n_days.group('days'))
+        slash_json =  get_multiple(n)
+    else:
+        dt = get_random_datetime() \
+                if date == 'random' \
+                else get_datetime_from_message(date)
+        url = get_comic_url(dt)
+        slash_json = get_slack_json(url, dt)
 
     response = {
         'statusCode': 200,
