@@ -1,9 +1,8 @@
-NAME="brianz/serverless:1.3"
+NAME="joinspartan/serverless:1.3"
 
-all : build
+.PHONY : all shell
 
-build :
-	docker build -t $(NAME) .
+all : shell
 
 shell :
 	docker run --rm -it \

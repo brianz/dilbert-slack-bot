@@ -8,10 +8,12 @@ import boto3
 from datetime import datetime, timedelta
 
 
+_comic_url_re = re.compile('\s+src="(?P<url>http://assets.amuniversal.com/[a-f0-9]+)"(\s\/)?>')
 _days_ago_re = re.compile('(?P<days>\w+) days ago')
 _int_days_ago_re = re.compile('(?P<days>\d{1,2}) days ago')
 _last_int_days = re.compile('last (?P<days>[12345])')
 _comic_url_re = re.compile('\s+src="(?P<url>http://assets.amuniversal.com/[a-f0-9]+)"(\s\/)?>')
+_tag_re = re.compile('href\=\"\/search_results\?terms=(?P<tag>\w+)\"\>')
 
 AWS_REGION = 'us-west-2'
 TABLE_NAME = 'devDilbert'
@@ -150,13 +152,27 @@ def get_image_url_from_db(dt):
     return record.get('url')
 
 
-def save_image_url_to_db(image_url, dt):
+def save_tags(url, tags):
+    for tag in tags:
+        data = _table.get_item(Key={'postDay': tag})
+        record = data.get('Item')
+        if not record:
+            item = {'postDay': tag, 'urls': [url]}
+        else:
+            urls = set(record['urls'])
+            urls.add(url)
+            item = {'postDay': tag, 'urls': list(urls)}
+        _table.put_item(Item=item)
+
+
+def save_image_url_to_db(image_url, dt, tags):
     print 'Saving to dynamo'
     _init_db()
     post_day = dt.strftime(DEFAULT_DATE_FMT)
     item = {
         'postDay': post_day,
         'url': image_url,
+        'tags': tags,
     }
     _table.put_item(Item=item)
 
@@ -173,7 +189,9 @@ def get_image_url(url, dt):
     found = _comic_url_re.search(html)
     if found:
         image_url = found.group('url')
-        save_image_url_to_db(image_url, dt)
+        tags = _tag_re.findall(html)
+        save_image_url_to_db(image_url, dt, tags)
+        save_tags(url, tags)
 
     return image_url
 
@@ -257,3 +275,14 @@ def dilbert(event, context):
     }
 
     return response
+
+if __name__ == '__main__':
+    fn = '../2017-02-13.html'
+    with open(fn, 'r') as fh:
+        html = fh.read()
+
+    found = _comic_url_re.search(html)
+    if found:
+        image_url = found.group('url')
+        print image_url
+        print _tag_re.findall(html)
